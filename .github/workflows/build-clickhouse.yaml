@@ -1,13 +1,15 @@
 name: Build and publish ClickHouse image
 
 on:
-    push:
-        branches:
-            - main
+    workflow_dispatch:
 
 jobs:
     build-and-publish:
         runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            packages: write
+            id-token: write
 
         steps:
             - name: Checkout repository
