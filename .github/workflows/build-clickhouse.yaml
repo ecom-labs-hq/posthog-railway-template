@@ -31,5 +31,5 @@ jobs:
               with:
                   context: .
                   file: ./ClickHouse.Dockerfile
-                  tags: ghcr.io/posthog-clickhouse:latest
+                  tags: ghcr.io/${{ github.repository }}/clickhouse:latest
                   push: true
