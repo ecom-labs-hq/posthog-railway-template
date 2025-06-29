@@ -1,6 +1,5 @@
 FROM clickhouse/clickhouse-server:24.8.14.39
 
-# Copy the custom files
 COPY ./posthog/posthog/idl /idl
 COPY ./posthog/docker/clickhouse/docker-entrypoint-initdb.d /docker-entrypoint-initdb.d
 COPY ./posthog/docker/clickhouse/config.xml /etc/clickhouse-server/config.xml
