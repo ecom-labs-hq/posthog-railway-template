@@ -110,3 +110,11 @@ jobs:
                   file: ./Temporal.Dockerfile
                   tags: ghcr.io/${{ github.repository }}/temporal:latest
                   push: true
+
+            - name: Build and push Temporal Django Worker image
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  file: ./TemporalDjangoWorker.Dockerfile
+                  tags: ghcr.io/${{ github.repository }}/temporal-django-worker:latest
+                  push: true
