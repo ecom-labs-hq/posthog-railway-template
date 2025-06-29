@@ -1,0 +1,155 @@
+name: Build and publish all custom images
+
+on:
+    workflow_dispatch:
+
+jobs:
+    setup:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Clone PostHog repository
+              run: git clone --depth 1 https://github.com/PostHog/posthog.git ./posthog
+
+            - name: Download GeoIP database
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y curl ca-certificates brotli
+
+                  mkdir -p ./share
+
+                  if [ ! -f ./share/GeoLite2-City.mmdb ]; then
+                    curl -L 'https://mmdbcdn.posthog.net/' --http1.1 | brotli --decompress --output=./share/GeoLite2-City.mmdb
+                    echo "{\"date\": \"$(date +%Y-%m-%d)\"}" > ./share/GeoLite2-City.json
+                    chmod 644 ./share/GeoLite2-City.mmdb
+                    chmod 644 ./share/GeoLite2-City.json
+                  fi
+
+            - name: Create scripts in /compose dir
+              run: |
+                  mkdir -p compose
+
+                  cat > compose/start <<EOF
+                  #!/bin/bash
+                  ./compose/wait
+                  ./bin/migrate
+                  ./bin/docker-server
+                  EOF
+
+                  cat > compose/temporal-django-worker <<EOF
+                  #!/bin/bash
+                  ./bin/temporal-django-worker
+                  EOF
+
+                  cat > compose/wait <<EOF
+                  #!/usr/bin/env python3
+                  import socket
+                  import time
+                  def loop():
+                      print("Waiting for ClickHouse and Postgres to be ready")
+                      try:
+                          with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                              s.connect(('clickhouse', 9000))
+                          print("Clickhouse is ready")
+                          with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                              s.connect(('db', 5432))
+                          print("Postgres is ready")
+                      except ConnectionRefusedError as e:
+                          time.sleep(5)
+                          loop()
+                  loop()
+                  EOF
+
+                  chmod +x compose/start
+                  chmod +x compose/temporal-django-worker
+                  chmod +x compose/wait
+
+    clickhouse:
+        needs: setup
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and push ClickHouse image
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  file: ./ClickHouse.Dockerfile
+                  tags: ghcr.io/${{ github.repository }}/clickhouse:latest
+                  push: true
+
+    web:
+        needs: setup
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and push Web image
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  file: ./Web.Dockerfile
+                  tags: ghcr.io/${{ github.repository }}/web:latest
+                  push: true
+
+    feature-flags:
+        needs: setup
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and push FeatureFlags image
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  file: ./FeatureFlags.Dockerfile
+                  tags: ghcr.io/${{ github.repository }}/feature-flags:latest
+                  push: true
+
+    temporal:
+        needs: setup
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and push Temporal image
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  file: ./Temporal.Dockerfile
+                  tags: ghcr.io/${{ github.repository }}/temporal:latest
+                  push: true
