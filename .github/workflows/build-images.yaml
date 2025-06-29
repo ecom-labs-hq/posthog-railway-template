@@ -4,14 +4,20 @@ on:
     workflow_dispatch:
 
 jobs:
-    setup:
+    build-and-publish:
         runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            packages: write
+            id-token: write
+
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4
 
             - name: Clone PostHog repository
-              run: git clone --depth 1 https://github.com/PostHog/posthog.git ./posthog
+              run: |
+                  git clone --depth 1 https://github.com/PostHog/posthog.git ./posthog
 
             - name: Download GeoIP database
               run: |
@@ -66,13 +72,6 @@ jobs:
                   chmod +x compose/temporal-django-worker
                   chmod +x compose/wait
 
-    clickhouse:
-        needs: setup
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-
             - name: Log in to GitHub Container Registry
               uses: docker/login-action@v3
               with:
@@ -88,20 +87,6 @@ jobs:
                   tags: ghcr.io/${{ github.repository }}/clickhouse:latest
                   push: true
 
-    web:
-        needs: setup
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-
-            - name: Log in to GitHub Container Registry
-              uses: docker/login-action@v3
-              with:
-                  registry: ghcr.io
-                  username: ${{ github.actor }}
-                  password: ${{ secrets.GITHUB_TOKEN }}
-
             - name: Build and push Web image
               uses: docker/build-push-action@v6
               with:
@@ -110,20 +95,6 @@ jobs:
                   tags: ghcr.io/${{ github.repository }}/web:latest
                   push: true
 
-    feature-flags:
-        needs: setup
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-
-            - name: Log in to GitHub Container Registry
-              uses: docker/login-action@v3
-              with:
-                  registry: ghcr.io
-                  username: ${{ github.actor }}
-                  password: ${{ secrets.GITHUB_TOKEN }}
-
             - name: Build and push FeatureFlags image
               uses: docker/build-push-action@v6
               with:
@@ -131,20 +102,6 @@ jobs:
                   file: ./FeatureFlags.Dockerfile
                   tags: ghcr.io/${{ github.repository }}/feature-flags:latest
                   push: true
-
-    temporal:
-        needs: setup
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-
-            - name: Log in to GitHub Container Registry
-              uses: docker/login-action@v3
-              with:
-                  registry: ghcr.io
-                  username: ${{ github.actor }}
-                  password: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Build and push Temporal image
               uses: docker/build-push-action@v6
